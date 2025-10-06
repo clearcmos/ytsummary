@@ -5,7 +5,7 @@ AI-powered YouTube video summarizer with RAG-enhanced Q&A using local Ollama mod
 ## Features
 
 - 🎯 Semantic chunking with overlap for accurate context preservation
-- 🔍 Vector embedding retrieval using sentence-transformers
+- 🔍 Hybrid search retrieval (BM25 + semantic embeddings) with query expansion
 - 💬 Interactive Q&A with conversation history
 - 🌐 Modern web interface with streaming responses
 - 📊 CLI tool for quick summaries

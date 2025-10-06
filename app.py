@@ -185,9 +185,12 @@ async def ask_question(request: QuestionRequest):
     # Reconstruct chunks from request data
     chunks = request.chunks_data
 
-    # Retrieve relevant chunks using hybrid search (BM25 + semantic)
+    # Stage 0: Reformulate query with chat history (conversational RAG)
+    reformulated_query = reformulate_query_with_history(request.question, request.conversation_history)
+
+    # Stage 1: Retrieve relevant chunks using hybrid search (BM25 + semantic)
     if len(chunks) > 5:
-        relevant_chunks = retrieve_relevant_chunks(request.question, chunks, top_k=5)
+        relevant_chunks = retrieve_relevant_chunks(reformulated_query, chunks, top_k=5)
         retrieved_text = "\n\n---RELEVANT SECTION---\n\n".join([c['text'] for c in relevant_chunks])
     else:
         retrieved_text = request.subtitle_text

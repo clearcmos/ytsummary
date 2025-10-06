@@ -130,6 +130,49 @@ def get_embedding_model():
         _embedding_model = SentenceTransformer('all-MiniLM-L6-v2')  # Fast, lightweight model
     return _embedding_model
 
+def reformulate_query_with_history(query, conversation_history):
+    """
+    Reformulate user query into standalone question using chat history.
+    This is critical for conversational RAG - transforms context-dependent
+    follow-ups into standalone queries that retrieve better chunks.
+
+    Example:
+        Q1: "How do you start using MCP?"
+        Q2: "How is he using docker?"
+        → Reformulated: "How does the speaker use Docker for MCP setup?"
+    """
+    if not conversation_history or len(conversation_history) < 2:
+        # No history, return original query
+        return query
+
+    # Get last few conversation turns (limit to 4 to keep context focused)
+    recent_history = conversation_history[-4:]
+    history_text = "\n".join(recent_history)
+
+    # Use LLM to reformulate query (non-streaming, fast)
+    reformulation_prompt = f"""Given this conversation history and a new question, rephrase the question to be a standalone question that incorporates relevant context from the history.
+
+CONVERSATION HISTORY:
+{history_text}
+
+NEW QUESTION: {query}
+
+Rephrase this question to be standalone, incorporating key context from history. Keep it concise (1-2 sentences max). Do NOT answer the question, only rephrase it.
+
+STANDALONE QUESTION:"""
+
+    try:
+        reformulated = ask_ollama(reformulation_prompt, temperature=0.1, stream=False)
+        # Clean up response
+        reformulated = reformulated.strip()
+        if reformulated and len(reformulated) > 10:
+            print(f"[Query reformulated: {query} → {reformulated}]")
+            return reformulated
+    except Exception as e:
+        print(f"[Query reformulation failed, using original: {e}]")
+
+    return query
+
 def expand_query(query):
     """
     Expand query with variations to improve retrieval.
@@ -367,10 +410,13 @@ def interactive_qa(subtitle_text, video_title, summary, chunks):
             if not question:
                 continue
 
+            # Stage 0: Reformulate query with chat history (conversational RAG)
+            reformulated_query = reformulate_query_with_history(question, conversation_history)
+
             # Stage 1: Retrieve relevant chunks using hybrid search (BM25 + semantic)
             if len(chunks) > 5:
                 # Use hybrid RAG for long videos (5 chunks for better coverage)
-                relevant_chunks = retrieve_relevant_chunks(question, chunks, top_k=5)
+                relevant_chunks = retrieve_relevant_chunks(reformulated_query, chunks, top_k=5)
                 retrieved_text = "\n\n---RELEVANT SECTION---\n\n".join([c['text'] for c in relevant_chunks])
 
                 # Debug: Show which chunks were retrieved with scores
