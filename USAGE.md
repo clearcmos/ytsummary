@@ -20,7 +20,10 @@
           services.ytsummary = {
             enable = true;
             port = 8000;
-            ollamaUrl = "http://localhost:11434";
+
+            # Model configuration (optional - uses defaults)
+            model = "qwen2.5:7b-instruct";  # Default model
+            autoConfigureOllama = true;     # Auto-setup Ollama (default: true)
           };
         }
       ];
@@ -68,19 +71,37 @@ ytsummary --load
 services.ytsummary = {
   enable = true;
 
+  # Model Configuration
+  model = "qwen2.5:7b-instruct";            # Ollama model to use (default)
+  autoConfigureOllama = true;               # Auto-setup Ollama (default: true)
+
+  # Network
   port = 8000;                              # Web interface port
   ollamaUrl = "http://localhost:11434";     # Ollama API endpoint
+
+  # Storage
   dataDir = "/var/lib/ytsummary";           # Subtitle storage
 
+  # User/Group
   user = "ytsummary";                       # Service user
   group = "ytsummary";                      # Service group
 
+  # Retention Policy
   retention = {
     enabled = true;                         # Auto-cleanup old files
     maxAge = "30d";                         # Keep files for 30 days
   };
 };
 ```
+
+### Zero-Config Setup
+
+With `autoConfigureOllama = true` (default), the module automatically:
+- ✅ Enables `services.ollama`
+- ✅ Adds the configured model to `services.ollama.loadModels`
+- ✅ Sets up proper systemd dependencies
+
+**Just enable and it works!** No manual Ollama configuration needed.
 
 ## Traefik Integration
 
@@ -124,10 +145,30 @@ ls -lah /var/lib/ytsummary/*.srt
 ## Requirements
 
 - ✅ NixOS with flakes enabled
-- ✅ Ollama service running
-- ✅ Ollama model: `qwen2.5:7b-instruct`
+- **That's it!** The module handles everything else automatically
+
+### Manual Model Installation (if autoConfigureOllama = false)
+
+If you disable auto-configuration, install the model manually:
 
 ```bash
-# Install Ollama model
+# Imperatively
 ollama pull qwen2.5:7b-instruct
+
+# Or declaratively in your config
+services.ollama = {
+  enable = true;
+  loadModels = [ "qwen2.5:7b-instruct" ];
+};
+```
+
+### Using Alternative Models
+
+```nix
+services.ytsummary = {
+  enable = true;
+  model = "llama3.2:3b";  # Faster, smaller model
+  # OR
+  model = "qwen2.5:14b-instruct";  # More capable, slower
+};
 ```
