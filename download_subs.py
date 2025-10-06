@@ -172,8 +172,9 @@ def ask_ollama(prompt, context=None, temperature=0.3, stream=False):
         if context:
             full_prompt = f"{context}\n\n{prompt}"
 
-        # Get model from environment or use default
+        # Get model and host from environment or use defaults
         model = os.environ.get('YTSUMMARY_MODEL', 'qwen2.5:7b-instruct')
+        ollama_host = os.environ.get('OLLAMA_HOST', 'http://localhost:11434')
 
         payload = {
             'model': model,
@@ -190,7 +191,7 @@ def ask_ollama(prompt, context=None, temperature=0.3, stream=False):
         if stream:
             # Streaming mode
             response = requests.post(
-                'http://localhost:11434/api/generate',
+                f'{ollama_host}/api/generate',
                 json=payload,
                 stream=True,
                 timeout=120
@@ -213,7 +214,7 @@ def ask_ollama(prompt, context=None, temperature=0.3, stream=False):
         else:
             # Non-streaming mode (backward compatible)
             response = requests.post(
-                'http://localhost:11434/api/generate',
+                f'{ollama_host}/api/generate',
                 json=payload,
                 timeout=120
             )
