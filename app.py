@@ -94,8 +94,8 @@ async def download_video(request: URLRequest):
         # Extract and clean text
         subtitle_text = clean_srt_text(srt_file)
 
-        # Create chunks
-        chunks = chunk_text_semantic(subtitle_text, chunk_size=500, overlap=100)
+        # Create chunks with larger overlap for better context
+        chunks = chunk_text_semantic(subtitle_text, chunk_size=500, overlap=150)
 
         # Store in cache (use string hash to avoid integer overflow)
         video_id = str(abs(hash(request.url)))
@@ -185,33 +185,37 @@ async def ask_question(request: QuestionRequest):
     # Reconstruct chunks from request data
     chunks = request.chunks_data
 
-    # Retrieve relevant chunks
+    # Retrieve relevant chunks using hybrid search (BM25 + semantic)
     if len(chunks) > 5:
-        relevant_chunks = retrieve_relevant_chunks(request.question, chunks, top_k=3)
+        relevant_chunks = retrieve_relevant_chunks(request.question, chunks, top_k=5)
         retrieved_text = "\n\n---RELEVANT SECTION---\n\n".join([c['text'] for c in relevant_chunks])
     else:
         retrieved_text = request.subtitle_text
 
-    # Build context
+    # Build context with improved instructions for accuracy
     context = f"""Answer questions about the YouTube video "{request.video_title}" using ONLY the retrieved transcript sections below.
 
-CRITICAL RULES:
-1. Answer ONLY from the retrieved transcript sections below
-2. If the answer isn't in these sections, say "This information is not in the video sections I can access"
-3. Pay attention to exact wording, especially negative statements ("not for", "not recommended", "avoid")
-4. Quote or paraphrase specific details from the transcript
-5. Do NOT use general knowledge about this topic
+CRITICAL RULES FOR ACCURACY:
+1. Answer EXCLUSIVELY from the retrieved transcript sections below - do not add external knowledge
+2. Be SPECIFIC: If the video says "really easy" or "super simple", state that exact wording
+3. Pay special attention to:
+   - Adjectives and qualifiers ("easy", "difficult", "simple", "complex")
+   - Specific nouns and technical terms
+   - Negative statements ("not for", "don't recommend", "avoid", "not recommended")
+   - Exact processes or steps mentioned
+4. If the information is NOT in the sections below, clearly state: "This specific information is not mentioned in the retrieved sections"
+5. When possible, mention WHERE in the video the information appears (e.g., "The speaker mentions...", "Later in the video...")
 
 RETRIEVED TRANSCRIPT SECTIONS:
 {retrieved_text}
 
-SUMMARY (for reference):
+SUMMARY (for broader context only):
 {request.summary}
 
 PREVIOUS CONVERSATION:
 {chr(10).join(request.conversation_history) if request.conversation_history else 'None'}
 
-Answer the question using only the transcript sections above:"""
+Answer the question using ONLY the transcript sections above. Be specific and cite exact phrases when available:"""
 
     return StreamingResponse(
         stream_answer(request.question, context),

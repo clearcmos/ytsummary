@@ -20,6 +20,7 @@
           fastapi
           uvicorn
           pydantic
+          rank-bm25
         ]);
 
         ytsummary = pkgs.stdenv.mkDerivation {

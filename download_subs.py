@@ -11,6 +11,7 @@ import numpy as np
 import time
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from rank_bm25 import BM25Okapi
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.live import Live
@@ -55,7 +56,7 @@ def clean_srt_text(srt_path):
 
     return ' '.join(text_lines)
 
-def chunk_text_semantic(text, chunk_size=500, overlap=100):
+def chunk_text_semantic(text, chunk_size=500, overlap=150):
     """
     Chunk text into overlapping segments for better context preservation.
     Uses sentence boundaries for semantic coherence.
@@ -129,38 +130,102 @@ def get_embedding_model():
         _embedding_model = SentenceTransformer('all-MiniLM-L6-v2')  # Fast, lightweight model
     return _embedding_model
 
-def retrieve_relevant_chunks(query, chunks, top_k=3):
+def expand_query(query):
     """
-    Retrieve most relevant chunks for a query using semantic similarity.
+    Expand query with variations to improve retrieval.
+    Simple rule-based expansion for common question patterns.
+    """
+    expanded_queries = [query]
+
+    # Add variations for "how" questions
+    if query.lower().startswith('how'):
+        expanded_queries.append(query.replace('how', 'what is the way', 1))
+        expanded_queries.append(query.replace('how', 'what are the steps', 1))
+
+    # Add variations for "does/is" questions
+    if query.lower().startswith('does ') or query.lower().startswith('is '):
+        expanded_queries.append(query.replace('?', ''))
+        expanded_queries.append(query + ' mentioned')
+
+    # Add variations for "what" questions
+    if query.lower().startswith('what'):
+        expanded_queries.append(query.replace('what', 'which', 1))
+
+    return expanded_queries
+
+def retrieve_relevant_chunks(query, chunks, top_k=5):
+    """
+    Retrieve most relevant chunks using hybrid search (BM25 + semantic).
+    Combines keyword matching with semantic similarity for better accuracy.
 
     Args:
         query: User's question
         chunks: List of chunk dictionaries with 'text' and metadata
-        top_k: Number of top chunks to return
+        top_k: Number of top chunks to return (increased from 3 to 5)
 
     Returns:
-        List of most relevant chunk texts
+        List of most relevant chunk texts with scores
     """
     model = get_embedding_model()
-
-    # Embed query and chunks
-    query_embedding = model.encode([query])
     chunk_texts = [chunk['text'] for chunk in chunks]
+
+    # Expand query for better retrieval
+    expanded_queries = expand_query(query)
+
+    # === SEMANTIC SEARCH ===
+    # Encode all query variations
+    query_embeddings = model.encode(expanded_queries)
     chunk_embeddings = model.encode(chunk_texts)
 
-    # Calculate cosine similarity
-    similarities = cosine_similarity(query_embedding, chunk_embeddings)[0]
+    # Calculate max similarity across all query variations
+    semantic_scores = np.zeros(len(chunk_texts))
+    for q_emb in query_embeddings:
+        similarities = cosine_similarity([q_emb], chunk_embeddings)[0]
+        semantic_scores = np.maximum(semantic_scores, similarities)
 
-    # Get top-k indices
-    top_indices = np.argsort(similarities)[-top_k:][::-1]
+    # === BM25 KEYWORD SEARCH ===
+    # Tokenize for BM25
+    tokenized_chunks = [text.lower().split() for text in chunk_texts]
+    bm25 = BM25Okapi(tokenized_chunks)
 
-    # Return top chunks with similarity scores (for debugging)
+    # Score with each query variation and take max
+    bm25_scores = np.zeros(len(chunk_texts))
+    for q in expanded_queries:
+        query_tokens = q.lower().split()
+        scores = bm25.get_scores(query_tokens)
+        bm25_scores = np.maximum(bm25_scores, scores)
+
+    # Normalize BM25 scores to [0, 1] range
+    if bm25_scores.max() > 0:
+        bm25_scores = bm25_scores / bm25_scores.max()
+
+    # === RECIPROCAL RANK FUSION ===
+    # Combine semantic and BM25 rankings
+    semantic_ranks = np.argsort(-semantic_scores)
+    bm25_ranks = np.argsort(-bm25_scores)
+
+    # RRF formula: score = sum(1 / (k + rank)) where k=60 is standard
+    k = 60
+    rrf_scores = np.zeros(len(chunk_texts))
+
+    for rank, idx in enumerate(semantic_ranks):
+        rrf_scores[idx] += 1.0 / (k + rank + 1)
+
+    for rank, idx in enumerate(bm25_ranks):
+        rrf_scores[idx] += 1.0 / (k + rank + 1)
+
+    # Get top-k indices by RRF score
+    top_indices = np.argsort(-rrf_scores)[:top_k]
+
+    # Return top chunks with combined scores
     relevant_chunks = []
     for idx in top_indices:
         relevant_chunks.append({
             'text': chunks[idx]['text'],
-            'similarity': similarities[idx],
-            'chunk_idx': idx
+            'semantic_score': float(semantic_scores[idx]),
+            'bm25_score': float(bm25_scores[idx]),
+            'rrf_score': float(rrf_scores[idx]),
+            'chunk_idx': int(idx)
         })
 
     return relevant_chunks
@@ -302,38 +367,42 @@ def interactive_qa(subtitle_text, video_title, summary, chunks):
             if not question:
                 continue
 
-            # Stage 1: Retrieve relevant chunks using semantic search
+            # Stage 1: Retrieve relevant chunks using hybrid search (BM25 + semantic)
             if len(chunks) > 5:
-                # Use RAG for long videos
-                relevant_chunks = retrieve_relevant_chunks(question, chunks, top_k=3)
+                # Use hybrid RAG for long videos (5 chunks for better coverage)
+                relevant_chunks = retrieve_relevant_chunks(question, chunks, top_k=5)
                 retrieved_text = "\n\n---RELEVANT SECTION---\n\n".join([c['text'] for c in relevant_chunks])
 
-                # Debug: Show which chunks were retrieved
-                console.print(f"[dim][Retrieved {len(relevant_chunks)} relevant sections from {len(chunks)} total chunks][/dim]")
+                # Debug: Show which chunks were retrieved with scores
+                console.print(f"[dim][Retrieved {len(relevant_chunks)} sections (hybrid BM25+semantic search)][/dim]")
             else:
                 # Short video - use full text
                 retrieved_text = subtitle_text
 
-            # Build context with retrieved information
+            # Build context with retrieved information and improved instructions
             context = f"""Answer questions about the YouTube video "{video_title}" using ONLY the retrieved transcript sections below.
 
-CRITICAL RULES:
-1. Answer ONLY from the retrieved transcript sections below
-2. If the answer isn't in these sections, say "This information is not in the video sections I can access"
-3. Pay attention to exact wording, especially negative statements ("not for", "not recommended", "avoid")
-4. Quote or paraphrase specific details from the transcript
-5. Do NOT use general knowledge about this topic
+CRITICAL RULES FOR ACCURACY:
+1. Answer EXCLUSIVELY from the retrieved transcript sections below - do not add external knowledge
+2. Be SPECIFIC: If the video says "really easy" or "super simple", state that exact wording
+3. Pay special attention to:
+   - Adjectives and qualifiers ("easy", "difficult", "simple", "complex")
+   - Specific nouns and technical terms
+   - Negative statements ("not for", "don't recommend", "avoid", "not recommended")
+   - Exact processes or steps mentioned
+4. If the information is NOT in the sections below, clearly state: "This specific information is not mentioned in the retrieved sections"
+5. When possible, mention WHERE in the video the information appears (e.g., "The speaker mentions...", "Later in the video...")
 
 RETRIEVED TRANSCRIPT SECTIONS:
 {retrieved_text}
 
-SUMMARY (for reference):
+SUMMARY (for broader context only):
 {summary}
 
 PREVIOUS CONVERSATION:
 {chr(10).join(conversation_history) if conversation_history else 'None'}
 
-Answer the question using only the transcript sections above:"""
+Answer the question using ONLY the transcript sections above. Be specific and cite exact phrases when available:"""
 
             # Stream the answer with rendered markdown
             console.print("\n[green]Answer:[/green] ", end='')
