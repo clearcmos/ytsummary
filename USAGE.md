@@ -49,9 +49,10 @@ The service starts automatically. Access at: **http://localhost:8000**
 ### Features
 - ✨ **Dark/Light Mode** - Toggle in top-right corner
 - 📊 **Real-time Streaming** - Watch the AI generate responses live
-- 🔍 **Advanced RAG Q&A** - Hybrid search (BM25 + semantic) with query expansion for accurate answers
-- 💬 **Conversation History** - Maintains context across questions
+- 🔍 **Advanced Conversational RAG** - History-aware query reformulation + hybrid search (BM25 + semantic)
+- 💬 **Smart Context Handling** - Automatically reformulates follow-up questions using chat history
 - 🎯 **Grounded Responses** - AI cites exact phrases from transcript, reducing hallucinations
+- 🚀 **2025 Best Practices** - Implements state-of-the-art retrieval techniques for maximum accuracy
 
 ## CLI Usage
 
@@ -180,22 +181,35 @@ services.ytsummary = {
 
 The Q&A system uses state-of-the-art retrieval techniques for maximum accuracy:
 
-**1. Query Expansion**
+**1. History-Aware Query Reformulation** (Conversational RAG)
+- Automatically reformulates follow-up questions using chat history
+- Example conversation:
+  - Q1: "How do you start using MCP?"
+  - Q2: "How is he using docker?"
+  - → Reformulated: "How does the speaker use Docker Desktop for MCP installation?"
+- Uses LLM to create standalone questions before retrieval
+- Dramatically improves accuracy for conversational Q&A
+
+**2. Query Expansion**
 - Automatically generates query variations for better recall
 - Example: "How easy is it?" → also searches for "what is the way", "what are the steps"
+- Applies to both original and reformulated queries
 
-**2. Hybrid Search (BM25 + Semantic)**
+**3. Hybrid Search (BM25 + Semantic)**
 - **BM25**: Keyword-based search catches exact phrases like "really easy", "setup instructions"
 - **Semantic**: Embedding-based search understands meaning and synonyms
 - **Reciprocal Rank Fusion (RRF)**: Intelligently combines both ranking methods
 
-**3. Enhanced Context**
+**4. Enhanced Context**
 - 150-token chunk overlap ensures important context isn't split
 - Top-5 retrieval (increased from 3) provides more comprehensive coverage
 
-**4. Grounded Prompting**
+**5. Grounded Prompting**
 - AI instructed to cite exact phrases and qualifiers
 - Explicitly told to mention WHERE in the video information appears
 - Reduces hallucinations by grounding responses in retrieved text
 
-This approach significantly improves factual accuracy compared to naive semantic-only RAG, especially for questions about specific details, adjectives, or technical terms.
+This multi-stage approach significantly improves factual accuracy compared to naive semantic-only RAG, especially for:
+- Follow-up questions in conversations
+- Questions about specific details, adjectives, or technical terms
+- Queries using pronouns or context-dependent references ("it", "that", "this")
