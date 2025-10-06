@@ -32,3 +32,10 @@ ENV/
 *.mp4
 *.webm
 *.pdf
+
+# Nix
+result
+result-*
+
+# Static files (will be generated)
+static/
