@@ -51,8 +51,7 @@
             makeWrapper ${pythonEnv}/bin/python $out/bin/ytsummary-web \
               --add-flags "-m uvicorn app:app --host 0.0.0.0" \
               --set PYTHONPATH "$out/share/ytsummary" \
-              --prefix PATH : ${pkgs.yt-dlp}/bin \
-              --run "cd $out/share/ytsummary"
+              --prefix PATH : ${pkgs.yt-dlp}/bin
           '';
 
           meta = with pkgs.lib; {
