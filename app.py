@@ -73,7 +73,8 @@ video_cache = {}
 async def read_root():
     """Serve the main web interface"""
     from fastapi.responses import FileResponse
-    return FileResponse("static/index.html")
+    _app_dir = os.path.dirname(os.path.abspath(__file__))
+    return FileResponse(os.path.join(_app_dir, "static/index.html"))
 
 @app.post("/api/download")
 async def download_video(request: URLRequest):
@@ -217,8 +218,9 @@ Answer the question using only the transcript sections above:"""
         media_type="text/event-stream"
     )
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount static files (use absolute path based on app location)
+_app_dir = os.path.dirname(os.path.abspath(__file__))
+app.mount("/static", StaticFiles(directory=os.path.join(_app_dir, "static")), name="static")
 
 if __name__ == "__main__":
     import uvicorn
