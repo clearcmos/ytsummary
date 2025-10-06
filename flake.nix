@@ -33,10 +33,14 @@
           installPhase = ''
             mkdir -p $out/bin
             mkdir -p $out/share/ytsummary
+            mkdir -p $out/share/ytsummary/static
 
             # Install Python scripts
             cp download_subs.py $out/share/ytsummary/
             cp app.py $out/share/ytsummary/
+
+            # Install static web files
+            cp -r static/* $out/share/ytsummary/static/
 
             # Create CLI wrapper
             makeWrapper ${pythonEnv}/bin/python $out/bin/ytsummary \
@@ -47,7 +51,8 @@
             makeWrapper ${pythonEnv}/bin/python $out/bin/ytsummary-web \
               --add-flags "-m uvicorn app:app --host 0.0.0.0" \
               --set PYTHONPATH "$out/share/ytsummary" \
-              --prefix PATH : ${pkgs.yt-dlp}/bin
+              --prefix PATH : ${pkgs.yt-dlp}/bin \
+              --run "cd $out/share/ytsummary"
           '';
 
           meta = with pkgs.lib; {

@@ -36,6 +36,3 @@ ENV/
 # Nix
 result
 result-*
-
-# Static files (will be generated)
-static/

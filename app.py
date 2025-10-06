@@ -40,11 +40,11 @@ class QuestionRequest(BaseModel):
 # Global storage for video data (in production, use Redis/DB)
 video_cache = {}
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 async def read_root():
     """Serve the main web interface"""
-    with open("static/index.html", "r") as f:
-        return f.read()
+    from fastapi.responses import FileResponse
+    return FileResponse("static/index.html")
 
 @app.post("/api/download")
 async def download_video(request: URLRequest):
