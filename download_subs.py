@@ -172,8 +172,11 @@ def ask_ollama(prompt, context=None, temperature=0.3, stream=False):
         if context:
             full_prompt = f"{context}\n\n{prompt}"
 
+        # Get model from environment or use default
+        model = os.environ.get('YTSUMMARY_MODEL', 'qwen2.5:7b-instruct')
+
         payload = {
-            'model': 'qwen2.5:7b-instruct',
+            'model': model,
             'prompt': full_prompt,
             'stream': stream,
             'options': {

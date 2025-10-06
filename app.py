@@ -25,6 +25,35 @@ from download_subs import (
 
 app = FastAPI(title="YouTube Summary AI", version="1.0.0")
 
+# Model configuration
+OLLAMA_MODEL = os.environ.get('YTSUMMARY_MODEL', 'qwen2.5:7b-instruct')
+OLLAMA_URL = os.environ.get('OLLAMA_HOST', 'http://localhost:11434')
+
+@app.on_event("startup")
+async def startup_event():
+    """Verify Ollama and model availability on startup"""
+    try:
+        # Check if Ollama is reachable
+        response = requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
+        if response.status_code == 200:
+            models = response.json().get('models', [])
+            model_names = [m['name'] for m in models]
+
+            # Check if configured model is available
+            if not any(OLLAMA_MODEL in name for name in model_names):
+                print(f"⚠️  Warning: Model '{OLLAMA_MODEL}' not found in Ollama")
+                print(f"   Available models: {', '.join(model_names) if model_names else 'none'}")
+                print(f"\n   To install the model:")
+                print(f"   - Imperatively: ollama pull {OLLAMA_MODEL}")
+                print(f"   - NixOS declarative: Add to services.ollama.loadModels = [\"{OLLAMA_MODEL}\"];")
+            else:
+                print(f"✅ Ollama model '{OLLAMA_MODEL}' is available")
+        else:
+            print(f"⚠️  Warning: Could not connect to Ollama at {OLLAMA_URL}")
+    except Exception as e:
+        print(f"⚠️  Warning: Could not verify Ollama setup: {e}")
+        print(f"   Make sure Ollama is running at {OLLAMA_URL}")
+
 # Request/Response models
 class URLRequest(BaseModel):
     url: str
@@ -67,8 +96,8 @@ async def download_video(request: URLRequest):
         # Create chunks
         chunks = chunk_text_semantic(subtitle_text, chunk_size=500, overlap=100)
 
-        # Store in cache
-        video_id = hash(request.url)
+        # Store in cache (use string hash to avoid integer overflow)
+        video_id = str(abs(hash(request.url)))
         video_cache[video_id] = {
             'title': video_title,
             'subtitle_text': subtitle_text,
@@ -126,7 +155,7 @@ Base your entire summary on the transcript sections above. Do not add external i
     yield "data: [DONE]\n\n"
 
 @app.get("/api/summary/{video_id}")
-async def get_summary(video_id: int):
+async def get_summary(video_id: str):
     """Stream summary generation using SSE"""
     if video_id not in video_cache:
         raise HTTPException(status_code=404, detail="Video not found")

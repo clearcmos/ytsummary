@@ -32,11 +32,21 @@ Enable the service:
   services.ytsummary = {
     enable = true;
     port = 8000;
-    ollamaUrl = "http://localhost:11434";
+
+    # Model configuration (optional)
+    model = "qwen2.5:7b-instruct";  # Default model
+    autoConfigureOllama = true;     # Auto-setup Ollama (default: true)
+
+    # Other options
     retention.maxAge = "30d";  # Auto-cleanup old files
   };
 }
 ```
+
+**Zero-config setup**: With `autoConfigureOllama = true` (default), the module automatically:
+- Enables Ollama service
+- Downloads and loads the specified model
+- No manual Ollama configuration needed!
 
 ### Nix Package
 
@@ -57,8 +67,15 @@ ytsummary --load  # Load existing subtitle
 
 ## Requirements
 
-- Ollama running with `qwen2.5:7b-instruct` model
 - NixOS with flakes enabled
+- **That's it!** The module handles Ollama setup automatically
+
+### Manual Ollama Setup (if autoConfigureOllama = false)
+
+```bash
+# If you disable auto-configuration, install the model manually:
+ollama pull qwen2.5:7b-instruct
+```
 
 ## License
 

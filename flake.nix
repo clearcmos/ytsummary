@@ -88,6 +88,23 @@
               description = "Port for the web interface";
             };
 
+            model = mkOption {
+              type = types.str;
+              default = "qwen2.5:7b-instruct";
+              description = "Ollama model to use for summarization";
+            };
+
+            autoConfigureOllama = mkOption {
+              type = types.bool;
+              default = true;
+              description = ''
+                Automatically configure Ollama service and load the required model.
+                When enabled, this will:
+                - Enable services.ollama if not already enabled
+                - Add the configured model to services.ollama.loadModels
+              '';
+            };
+
             ollamaUrl = mkOption {
               type = types.str;
               default = "http://localhost:11434";
@@ -128,6 +145,12 @@
           };
 
           config = mkIf cfg.enable {
+            # Auto-configure Ollama if enabled
+            services.ollama = mkIf cfg.autoConfigureOllama {
+              enable = mkDefault true;
+              loadModels = [ cfg.model ];
+            };
+
             users.users.${cfg.user} = {
               isSystemUser = true;
               group = cfg.group;
@@ -141,12 +164,13 @@
             systemd.services.ytsummary = {
               description = "YouTube Summary AI Web Service";
               wantedBy = [ "multi-user.target" ];
-              after = [ "network.target" ];
-              wants = [ "ollama.service" ];
+              after = [ "network.target" ] ++ (optional cfg.autoConfigureOllama "ollama.service");
+              wants = optional cfg.autoConfigureOllama "ollama.service";
 
               environment = {
                 OLLAMA_HOST = cfg.ollamaUrl;
                 YTSUMMARY_DATA_DIR = cfg.dataDir;
+                YTSUMMARY_MODEL = cfg.model;
               };
 
               serviceConfig = {
