@@ -47,12 +47,12 @@ The service starts automatically. Access at: **http://localhost:8000**
 3. **Ask questions** in the Q&A section below the summary
 
 ### Features
-- ✨ **Dark/Light Mode** - Toggle in top-right corner
-- 📊 **Real-time Streaming** - Watch the AI generate responses live
-- 🔍 **Advanced Conversational RAG** - History-aware query reformulation + hybrid search (BM25 + semantic)
-- 💬 **Smart Context Handling** - Automatically reformulates follow-up questions using chat history
-- 🎯 **Grounded Responses** - AI cites exact phrases from transcript, reducing hallucinations
-- 🚀 **2025 Best Practices** - Implements state-of-the-art retrieval techniques for maximum accuracy
+- **Dark/Light Mode** - Toggle in top-right corner
+- **Real-time Streaming** - Watch the AI generate responses live
+- **Advanced Conversational RAG** - History-aware query reformulation + hybrid search (BM25 + semantic)
+- **Smart Context Handling** - Automatically reformulates follow-up questions using chat history
+- **Grounded Responses** - AI cites exact phrases from transcript, reducing hallucinations
+- **2025 Best Practices** - Implements state-of-the-art retrieval techniques for maximum accuracy
 
 ## CLI Usage
 
@@ -99,9 +99,9 @@ services.ytsummary = {
 ### Zero-Config Setup
 
 With `autoConfigureOllama = true` (default), the module automatically:
-- ✅ Enables `services.ollama`
-- ✅ Adds the configured model to `services.ollama.loadModels`
-- ✅ Sets up proper systemd dependencies
+- Enables `services.ollama`
+- Adds the configured model to `services.ollama.loadModels`
+- Sets up proper systemd dependencies
 
 **Just enable and it works!** No manual Ollama configuration needed.
 
@@ -146,7 +146,7 @@ ls -lah /var/lib/ytsummary/*.srt
 
 ## Requirements
 
-- ✅ NixOS with flakes enabled
+- NixOS with flakes enabled
 - **That's it!** The module handles everything else automatically
 
 ### Manual Model Installation (if autoConfigureOllama = false)
